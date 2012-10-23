@@ -2,8 +2,8 @@
 
 import icalendar
 
+from backend import Backend
 from . import xmlutils
-from . import dav
 
 def options(environ, content):
     """
@@ -26,6 +26,26 @@ def options(environ, content):
     return 200, headers, []
 
 def mkcalendar(environ, content):
+    """
+        Body:
+
+        <C:mkcalendar>
+            <D:set>
+                <D:prop>
+                    <D:displayname>display name</D:displayname>
+                    <C:calendar-description>description</C:calendar-description>
+                    <C:supported-calendar-component-set>
+                        <C:comp name="COMPONENT TYPE" />
+                        ...
+                    </C:supported-calendar-component-set>
+                    <C:calendar-timezone>
+                        iCal object: timezone
+                    </C:calendar-timezone>
+                </D:prop>
+            </D:set>
+        </C:mkcalendar>
+    """
+
     headers = {
         'Cache-Control': 'no-cache',
     }
@@ -34,42 +54,50 @@ def mkcalendar(environ, content):
 
     # Retrieve calendar properties
 
-    Dset = dom.find(xmlutils.tag('D', 'set'))
+    displayname = dom.findall('./{0}/{1}/{2}'.format(
+                        xmlutils.tag('D', 'set'),
+                        xmlutils.tag('D', 'prop'),
+                        xmlutils.tag('D', 'displayname')
+    ))
 
-    if Dset is None:
-        return 500, headers, ['Can\'t find <D:set> tag in XML data\n']
+    description = dom.findall('./{0}/{1}/{2}'.format(
+                        xmlutils.tag('D', 'set'),
+                        xmlutils.tag('D', 'prop'),
+                        xmlutils.tag('C', 'calendar-description')
+    ))
 
-    Dprops = Dset.find(xmlutils.tag('D', 'prop'))
+    comps = dom.findall('./{0}/{1}/{2}'.format(
+                        xmlutils.tag('D', 'set'),
+                        xmlutils.tag('D', 'prop'),
+                        xmlutils.tag('C', 'supported-calendar-component-set')
+    ))
 
-    if Dprops is None:
-        return 500, headers, ['Can\'nt find <D:set> / <D:prop> tag in XML data\n']
+    components = []
 
-    props = {
-        'type': 'C:mkcalendar',
-    }
+    for comp in comps[0]:
+        if comp.tag == xmlutils.tag('C', 'comp'):
+            components.append(comp.attrib['name'])
 
-    for child in Dprops:
-        if child.tag == xmlutils.tag('D', 'displayname'):
-            props['D:displayname'] = child.text
+    timezone = dom.findall('./{0}/{1}/{2}'.format(
+                        xmlutils.tag('D', 'set'),
+                        xmlutils.tag('D', 'prop'),
+                        xmlutils.tag('C', 'calendar-timezone')
+    ))
 
-        elif child.tag == xmlutils.tag('C', 'calendar-description'):
-            props['C:calendar-description'] = child.text
+    # here, we got lists, if the element wasn't found, then the list is empty
+    if not displayname or not description or not components or not timezone:
+        return 500, headers, ['Invalid XML body.\n']
 
-        elif child.tag == xmlutils.tag('C', 'supported-calendar-component-set'):
-            props['C:supported-calendar-component-set'] = []
+    try:
+        status, msg = Backend.mkcalendar(environ['PATH_INFO'],
+                                         displayname[0].text,
+                                         description[0].text,
+                                         icalendar.Calendar.from_ical(timezone[0].text)
+        )
+    except NotImplementedError:
+        return 500, headers, ['Not yet implemented.\n']
 
-            for comp in child:
-                if comp.tag == xmlutils.tag('C', 'comp'):
-                    props['C:supported-calendar-component-set'].append(comp.attrib['name'])
-
-        elif child.tag == xmlutils.tag('C', 'calendar-timezone'):
-            props['C:calendar-timezone'] = icalendar.Calendar.from_ical(child.text)
-
-    # Create ressource
-    rsrc = dav.Ressource(**props)
-    rsrc.save()
-
-    return 201, headers, []
+    return status, headers, msg
 
 requests = {
     'OPTIONS': options,
