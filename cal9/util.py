@@ -5,6 +5,13 @@ import httplib
 def http_response(code):
     return 'HTTP/1.1 {0} {1}'.format(code, httplib.responses[code])
 
+def DEBUG(msg):
+    import config
+    import sys
+
+    if config.config.debug:
+        print >>sys.stderr, "DEBUG:", msg
+
 
 class Dict(dict):
     def __getattr__(self, key):
@@ -21,3 +28,4 @@ class Dict(dict):
                 self[k].update(v)
             else:
                 self[k] = v
+

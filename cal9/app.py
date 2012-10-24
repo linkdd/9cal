@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import posixpath
-import sys
 
 import xml.etree.ElementTree as ET
 from urllib import unquote
 
+from util import DEBUG
 import config
 import backends
 import xmlutils
 import ical
-
-def DEBUG(msg):
-    print >>sys.stderr, "DEBUG: ", msg
 
 class Application(object):
     """ Main application interface """

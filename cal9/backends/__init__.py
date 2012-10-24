@@ -1,9 +1,9 @@
 from cal9 import config
+from cal9.util import DEBUG
 
 def load():
-    try:
-        backend_type = config.config.backend
-        module = __import__('cal9.backends', fromlist=[backend_type])
-        return getattr(module, backend_type)
-    except AttributeError:
-        raise ImportError, "There is no backend '{0}'".format(backend_type)
+    backend_type = config.config.backend
+    DEBUG("Loading backend '{0}'".format(backend_type))
+
+    module = __import__('cal9.backends', fromlist=[backend_type])
+    return getattr(module, backend_type)

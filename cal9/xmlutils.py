@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from util import http_response
+import ical
 
 import xml.etree.ElementTree as ET
 import re
@@ -32,7 +33,7 @@ for ns, url in NAMESPACES.items():
 CLARK_TAG_REGEX = re.compile(r'{(?P<namespace>[^}]*)}(?P<tag>.*)')
 
 def tag(ns, name):
-    return '{{{0}}{1}'.format(NAMESPACES[ns], name)
+    return '{{{0}}}{1}'.format(NAMESPACES[ns], name)
 
 def tag_clark(tagname):
     match = CLARK_TAG_REGEX.match(tagname)

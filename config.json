@@ -1,1 +1,7 @@
-{"backend": "filesystem"}
+{
+     "backend": "filesystem",
+     "debug": true,
+     "calendars": {
+          "folder": "/home/david/.cache/9cal/calendars"
+     }
+}

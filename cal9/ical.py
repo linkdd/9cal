@@ -112,12 +112,15 @@ class Calendar(object):
 
     @property
     def name(self):
-        raise NotImplementedError
+        """ Return calendar's name """
+
+        with self.props as props:
+            return props.get('D:displayname', self.path.split('/')[-1])
 
     @property
     def text(self):
         """ The collection as plain text """
-        raise NotImplementedError
+        return self.ical.to_ical()
 
     @property
     @contextmanager
