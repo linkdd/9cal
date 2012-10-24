@@ -6,6 +6,8 @@ import sys
 import xml.etree.ElementTree as ET
 from urllib import unquote
 
+import config
+import backends
 import xmlutils
 import ical
 
@@ -14,6 +16,10 @@ def DEBUG(msg):
 
 class Application(object):
     """ Main application interface """
+
+    def __init__(self, confpath):
+        config.load(confpath)
+        backends.load()
 
     def __call__(self, environ, start_response):
         """ WSGI caller """
