@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+from util import http_response
+
 import xml.etree.ElementTree as ET
-import httplib
+import re
+import os
 
 NAMESPACES = {
     'C': 'urn:ietf:params:xml:ns:caldav',
@@ -12,55 +15,172 @@ NAMESPACES = {
     'ME': 'http://me.com/_namespace/',
 }
 
+# Generate reverse dict
+
+NAMESPACES_REV = {}
+
+for ns, url in NAMESPACES.items():
+    NAMESPACES_REV[url] = ns
+
+    # Register namespace
+    if hasattr(ET, 'register_namespace'):
+        ET.register_namespace('' if ns == 'D' else ns, url)
+    else:
+        ET._namespace_map[url] = ns
+
+
+CLARK_TAG_REGEX = re.compile(r'{(?P<namespace>[^}]*)}(?P<tag>.*)')
+
 def tag(ns, name):
-    return '{{{0}}}{1}'.format(NAMESPACES[ns], name)
+    return '{{{0}}{1}'.format(NAMESPACES[ns], name)
 
-def parseString(xml):
-    return ET.fromstring(xml)
+def tag_clark(tagname):
+    match = CLARK_TAG_REGEX.match(tagname)
 
-class XMLMultiStatus(object):
-    """
-        Build XML for Multi-Status body.
+    if match and match.group('namespace') in NAMESPACES_REV:
+        return '{0}:{1}'.format(
+                NAMESPACES_REV[match.group('namespace')],
+                match.group('tag')
+        )
 
-        <D:multistatus>
-            <D:response>
-                <D:propstat>
-                    <D:prop>
-                        <D:href>Complete URL to calendar</D:href>
-                        <D:getetag>iCalendar hash</D:getetag>
-                        <C:calendar-data>iCalendar</C:calendar-data>
-                    </D:prop>
-                    <D:status>HTTP/1.1 statuscode statusmsg</D:status>
-                </D:propstat>
-            </D:response>
-            ...
-        </D:multistatus>
-    """
+    return tagname
 
-    def __init__(self):
-        self.dom = ET.Element('D:multistatus')
-        self.dom.attrib['xmlns:D'] = NAMESPACES['D']
-        self.dom.attrib['xmlns:C'] = NAMESPACES['C']
+def render(xml):
+    """ Render XML tree to string """
 
-    def __str__(self):
-        return ET.dump(self.dom) or ''
+    return u'<?xml version="1.0" encoding="utf-8" ?>{0}'.format(ET.tostring(xml))
 
-    def add_response(self, code, href, ical):
-        response = ET.SubElement(self.dom, 'D:response')
 
-        Dhref = ET.SubElement(response, 'D:href')
-        Dhref.text = href
+def propfind_response(path, item, props):
+    """ Perform a PROPFIND on ``item`` """
 
-        propstat = ET.SubElement(response, 'D:propstat')
-        prop = ET.SubElement(propstat, 'D:prop')
+    is_collection = isinstance(item, ical.Calendar)
 
-        calendar_data = ET.SubElement(prop, 'C:calendar-data')
-        calendar_data.text = ical.to_ical()
+    if is_collection:
+        with item.props as properties:
+            collection_props = properties
 
-        getetag = ET.SubElement(prop, 'D:getetag')
-        getetag.text = hash(calendar_data.text)
+    response = ET.Element(tag('D', 'response'))
 
-        status = ET.SubElement(propstat, 'D:status')
-        status.text = 'HTTP/1.1 {0} {1}'.format(code, httplib.responses[code])
+    href = ET.Element(tag('D', 'href'))
+    href.text = item.name
+    response.append(href)
 
+    propstat404 = ET.Element(tag('D', 'propstat'))
+    propstat200 = ET.Element(tag('D', 'propstat'))
+    response.append(propstat200)
+
+    prop404 = ET.Element(tag('D', 'prop'))
+    propstat404.append(prop404)
+
+    prop200 = ET.Element(tag('D', 'prop'))
+    propstat200.append(prop200)
+
+    for tag in props:
+        element = ET.Element(tag)
+        tag_not_found = False
+
+        if tag == tag('D', 'getetag'):
+            element.text = item.etag
+
+        elif tag == tag('D', 'principal-URL'):
+            tag = ET.Element(tag('D', 'href'))
+            tag.text = path
+            element.append(tag)
+
+        elif tag in (
+                tag('D', 'principal-collection-set'),
+                tag('C', 'calendar-user-address-set'),
+                tag('C', 'calendar-home-set')
+                ):
+            tag = ET.Element(tag('D', 'href'))
+            tag.text = path
+            element.append(tag)
+
+        elif tag == tag('C', 'supported-calendar-component-set'):
+            for component in ("VTODO", "VEVENT", "VJOURNAL"):
+                comp = ET.Element(tag('C', 'comp'))
+                comp.set('name', component)
+                element.append(comp)
+
+        elif tag == tag('D', 'current-user-principal'):
+            tag = ET.Element(tag('D', 'href'))
+            tag.text = path
+            element.append(tag)
+
+        elif tag == tag('D', 'current-user-privilege-set'):
+            privilege = ET.Element(tag('D', 'privilege'))
+            privilege.append(ET.Element(tag('D', 'all')))
+            element.append(privilege)
+
+        elif tag == tag('D', 'supported-report-set'):
+            for report_name in (
+                    'principal-property-search',
+                    'sync-collection',
+                    'expand-property',
+                    'principal-search-property-set'
+                    ):
+                supported = ET.Element(tag('D', 'supported-report'))
+                report_tag = ET.Element(tag('D', 'report'))
+                report_tag.text = report_name
+                supported.append(report_tag)
+                element.append(supported)
+
+        elif is_collection:
+            # Only for collections
+            if tag == tag('D', 'getcontenttype'):
+                element.text = item.mimetype
+
+            elif tag == tag('D', 'resourcetype'):
+                tag = ET.Element(tag('C', item.resource_type))
+                element.append(tag)
+
+                tag = ET.Element(tag('D', 'collection'))
+                element.append(tag)
+
+            elif tag == tag('D', 'owner'):
+                element.text = os.path.dirname(path)
+
+            elif tag == tag('CS', 'getctag'):
+                element.text = item.etag
+
+            elif tag == tag('C', 'calendar-timezone'):
+                element.text = item.timezones.to_ical()
+
+            else:
+                tagname = tag_clark(tag)
+
+                if tagname in collection_props:
+                    element.text = collection_props[tagname]
+                else:
+                    tag_not_found = True
+
+        # Not for collections
+        elif tag == tag('D', 'getcontenttype'):
+            element.text = '{0}; component={1}'.format(item.mimetype, item.tag.lower())
+
+        elif tag == tag('D', 'resourcetype'):
+            # Must be empty for non-collection element
+            pass
+
+        else:
+            tag_not_found = True
+
+        if tag_not_found:
+            prop404.append(element)
+        else:
+            prop200.append(element)
+
+    status200 = ET.Element(tag('D', 'status'))
+    status200.text = http_response(200)
+    propstat200.append(status200)
+
+    status404 = ET.Element(tag('D', 'status'))
+    status404.text = http_response(404)
+    propstat404.append(status404)
+
+    if len(prop404):
+        response.append(propstat404)
+
+    return response
 
