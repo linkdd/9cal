@@ -2,9 +2,11 @@
 
 from cal9 import config
 from cal9 import ical
+from cal9.util import DEBUG
 
 from contextlib import contextmanager
 
+import simplejson as json
 import icalendar
 import os
 
@@ -14,7 +16,16 @@ class Calendar(ical.Calendar):
     @property
     def _path(self):
         """ Path on the computer """
-        return os.path.join(FOLDER, self.path.replace('/', os.sep))
+
+        # Remove first / and last /
+        path = self.path[1:-1]
+
+        return os.path.join(FOLDER, path.replace('/', os.sep))
+
+    @property
+    def _props_path(self):
+        """ Properties path on the computer """
+        return '{0}.props'.format(self._path)
 
     def _makedirs(self):
         if not os.path.exists(os.path.dirname(self._path)):
@@ -25,11 +36,30 @@ class Calendar(ical.Calendar):
         ical = icalendar.Calendar()
         return ical
 
+    @property
+    @contextmanager
+    def props(self):
+        properties = {}
+
+        # Read properties
+
+        if os.path.exists(self._props_path):
+            with open(self._props_path, 'r') as f:
+                properties.update(json.load(f))
+
+        yield properties
+
+        # Save properties
+
+        self._makedirs()
+        with open(self._props_path, 'w') as f:
+            json.dump(properties, f)
+
     def save(self, ical):
         self._makedirs()
-        f = open(self._path, 'w')
-        f.write(ical.to_ical())
-        f.close()
+
+        with open(self._path, 'w') as f:
+            f.write(ical.to_ical())
 
     def delete(self):
         os.remove(self._path)

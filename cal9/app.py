@@ -145,6 +145,11 @@ class Application(object):
                 </D:multistatus>
         """
 
+        headers = {
+            'DAV': '1, 2, access-control, calendar-access',
+            'Content-Type': 'text/xml',
+        }
+
         # Read request
 
         dom = ET.fromstring(request_body)
@@ -160,4 +165,4 @@ class Application(object):
             response = xmlutils.propfind_response(path, collection, props)
             multistatus.append(response)
 
-        return xmlutils.render(multistatus)
+        return 207, headers, xmlutils.render(multistatus)

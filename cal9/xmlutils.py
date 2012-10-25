@@ -77,44 +77,44 @@ def propfind_response(path, item, props):
     prop200 = ET.Element(tag('D', 'prop'))
     propstat200.append(prop200)
 
-    for tag in props:
-        element = ET.Element(tag)
+    for xmltag in props:
+        element = ET.Element(xmltag)
         tag_not_found = False
 
-        if tag == tag('D', 'getetag'):
+        if xmltag == tag('D', 'getetag'):
             element.text = item.etag
 
-        elif tag == tag('D', 'principal-URL'):
-            tag = ET.Element(tag('D', 'href'))
-            tag.text = path
-            element.append(tag)
+        elif xmltag == tag('D', 'principal-URL'):
+            xmltag = ET.Element(tag('D', 'href'))
+            xmltag.text = path
+            element.append(xmltag)
 
-        elif tag in (
+        elif xmltag in (
                 tag('D', 'principal-collection-set'),
                 tag('C', 'calendar-user-address-set'),
                 tag('C', 'calendar-home-set')
                 ):
-            tag = ET.Element(tag('D', 'href'))
-            tag.text = path
-            element.append(tag)
+            xmltag = ET.Element(tag('D', 'href'))
+            xmltag.text = path
+            element.append(xmltag)
 
-        elif tag == tag('C', 'supported-calendar-component-set'):
+        elif xmltag == tag('C', 'supported-calendar-component-set'):
             for component in ("VTODO", "VEVENT", "VJOURNAL"):
                 comp = ET.Element(tag('C', 'comp'))
                 comp.set('name', component)
                 element.append(comp)
 
-        elif tag == tag('D', 'current-user-principal'):
-            tag = ET.Element(tag('D', 'href'))
-            tag.text = path
-            element.append(tag)
+        elif xmltag == tag('D', 'current-user-principal'):
+            xmltag = ET.Element(tag('D', 'href'))
+            xmltag.text = path
+            element.append(xmltag)
 
-        elif tag == tag('D', 'current-user-privilege-set'):
+        elif xmltag == tag('D', 'current-user-privilege-set'):
             privilege = ET.Element(tag('D', 'privilege'))
             privilege.append(ET.Element(tag('D', 'all')))
             element.append(privilege)
 
-        elif tag == tag('D', 'supported-report-set'):
+        elif xmltag == tag('D', 'supported-report-set'):
             for report_name in (
                     'principal-property-search',
                     'sync-collection',
@@ -129,27 +129,27 @@ def propfind_response(path, item, props):
 
         elif is_collection:
             # Only for collections
-            if tag == tag('D', 'getcontenttype'):
+            if xmltag == tag('D', 'getcontenttype'):
                 element.text = item.mimetype
 
-            elif tag == tag('D', 'resourcetype'):
-                tag = ET.Element(tag('C', item.resource_type))
-                element.append(tag)
+            elif xmltag == tag('D', 'resourcetype'):
+                xmltag = ET.Element(tag('C', item.resource_type))
+                element.append(xmltag)
 
-                tag = ET.Element(tag('D', 'collection'))
-                element.append(tag)
+                xmltag = ET.Element(tag('D', 'collection'))
+                element.append(xmltag)
 
-            elif tag == tag('D', 'owner'):
+            elif xmltag == tag('D', 'owner'):
                 element.text = os.path.dirname(path)
 
-            elif tag == tag('CS', 'getctag'):
+            elif xmltag == tag('CS', 'getctag'):
                 element.text = item.etag
 
-            elif tag == tag('C', 'calendar-timezone'):
+            elif xmltag == tag('C', 'calendar-timezone'):
                 element.text = item.timezones.to_ical()
 
             else:
-                tagname = tag_clark(tag)
+                tagname = tag_clark(xmltag)
 
                 if tagname in collection_props:
                     element.text = collection_props[tagname]
@@ -157,10 +157,10 @@ def propfind_response(path, item, props):
                     tag_not_found = True
 
         # Not for collections
-        elif tag == tag('D', 'getcontenttype'):
+        elif xmltag == tag('D', 'getcontenttype'):
             element.text = '{0}; component={1}'.format(item.mimetype, item.tag.lower())
 
-        elif tag == tag('D', 'resourcetype'):
+        elif xmltag == tag('D', 'resourcetype'):
             # Must be empty for non-collection element
             pass
 
