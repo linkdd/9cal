@@ -55,15 +55,18 @@ class Item(object):
     def name(self):
         return self._name
 
-class Event(Item):
+class Component(Item):
+    pass
+
+class Event(Component):
     tag = 'VEVENT'
     mimetype = 'text/calendar'
 
-class Todo(Item):
+class Todo(Component):
     tag = 'VTODO'
     mimetype = 'text/calendar'
 
-class Journal(Item):
+class Journal(Component):
     tag = 'VJOURNAL'
     mimetype = 'text/calendar'
 

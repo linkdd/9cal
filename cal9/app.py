@@ -7,6 +7,7 @@ import posixpath
 import os
 
 from util import DEBUG
+import util
 import config
 import backends
 import xmlutils
@@ -233,18 +234,99 @@ class Application(object):
             According to [RFC 3253], it should return 207 Multi-Status.
             The request body contains :
 
-                <C:calendar-query>
+                <C:calendar-multiget / calendar-query>
+                    <D:href>...</D:href>
                     <D:prop>
                         ...
                     </D:prop>
-                </C:calendar-query
+                </C:calendar-multiget / calendar-query>
+
+            It should returns the following content :
+
+                <D:multistatus>
+                    <D:response>
+                        <D:href>
+                        <D:propstat>
+                            <D:prop>
+                                ...
+                            </D:prop>
+                            <D:status>...</D:status>
+                        </D:propstat>
+                    </D:response>
+                    ...
+                </D:multistatus>
         """
 
         headers = {
             'Content-Type': 'text/xml',
         }
 
-        return 207, headers, []
+        collection = collections[0]
+
+        # Parse request body
+        dom = ET.fromstring(request_body)
+
+        dprop = dom.find(xmlutils.tag('D', 'prop'))
+        properties = [prop.tag for prop in dprop]
+
+        if collection:
+            if dom.tag == xmlutils.tag('C', 'calendar-multiget'):
+                hrefs = set(href.text for href in dom.findall(xmlutils.tag('D', 'href')))
+
+            else:
+                hrefs = (path,)
+        else:
+            hrefs = ()
+
+        # Write response body
+        multistatus = ET.Element(xmlutils.tag('D', 'multistatus'))
+
+        for href in hrefs:
+            name = self.wsgi_name_from_path(path, collection)
+
+            if name:
+                # The reference is an item
+
+                path = '/'.join(href.split('/')[:-1]) + '/'
+                items = (item for item in collection.items if item.name == name)
+
+            else:
+                # The reference is a collection
+                path = href
+                items = collection.components
+
+            # Create a response element for all items
+            for item in items:
+                response = ET.Element(xmlutils.tag('D', 'response'))
+                multistatus.append(response)
+
+                xmlhref = ET.Element(xmlutils.tag('D', 'href'))
+                xmlhref.text = '{0}/{1}'.format(path.rstrip('/'), name)
+                response.append(xmlhref)
+
+                propstat = ET.Element(xmlutils.tag('D', 'propstat'))
+                response.append(propstat)
+
+                prop = ET.Element(xmlutils.tag('D', 'prop'))
+                propstat.append(prop)
+
+                for tag in properties:
+                    element = ET.Element(tag)
+
+                    if tag == xmlutils.tag('D', 'getetag'):
+                        element.text = item.etag
+
+                    elif tag == xmlutils.tag('C', 'calendar-data'):
+                        if isinstance(item, ical.Component):
+                            element.text = item.to_ical()
+
+                    prop.append(element)
+
+                status = ET.Element(xmlutils.tag('D', 'status'))
+                status.text = util.http_response(200)
+                propstat.append(status)
+
+        return 207, headers, [xmlutils.render(multistatus)]
 
 
     def put(self, path, collections, request_body, environ):
