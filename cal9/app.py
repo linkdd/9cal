@@ -4,6 +4,7 @@ import posixpath
 
 import xml.etree.ElementTree as ET
 from urllib import unquote
+import icalendar
 
 from util import DEBUG
 import config
@@ -49,7 +50,7 @@ class Application(object):
 
         collections = ical.Calendar.from_path(path)
 
-        response = function(path, collections, request_body)
+        response = function(path, collections, request_body, environ)
         DEBUG('Response body:\n{0}'.format(response))
 
         return response
@@ -93,9 +94,20 @@ class Application(object):
 
         return '{0}{1}'.format(uri, trailing_slash)
 
+    def wsgi_name_from_path(self, path, collection):
+        """ Get item name from path """
+
+        collection_parts = collection.path.strip('/').split('/')
+        path_parts = path.strip('/').split('/')
+
+        if (len(path_parts) - len(collection_parts)):
+            DEBUG('name from path: {0}'.format(path_parts[-1]))
+
+            return path_parts[-1]
+
     ## Request handlers
 
-    def options(self, path, collections, request_body):
+    def options(self, path, collections, request_body, environ):
         """
             Manage OPTIONS request.
 
@@ -115,7 +127,7 @@ class Application(object):
 
         return 200, headers, []
 
-    def propfind(self, path, collections, request_body):
+    def propfind(self, path, collections, request_body, environ):
         """
             Manage PROPFIND request.
 
@@ -165,4 +177,80 @@ class Application(object):
             response = xmlutils.propfind_response(path, collection, props)
             multistatus.append(response)
 
-        return 207, headers, xmlutils.render(multistatus)
+        return 207, headers, [xmlutils.render(multistatus)]
+
+    def head(self, path, collections, request_body, environ):
+        """
+            Manage HEAD request.
+
+            According to [RFC 2518], a HEAD request is like a GET
+            request, but without response body.
+        """
+
+        status, headers, body = self.get(path, collections, request_body, environ)
+        return status, headers, []
+
+    def get(self, path, collections, request_body, environ):
+        """
+            Manage GET request.
+
+            It should return the Etag and the resource content.
+        """
+
+        headers = {}
+
+        collection = collections[0]
+        item_name = self.wsgi_name_from_path(path, collection)
+
+        if item_name:
+            # Retrieve collection item
+            item = collection.get_item(item_name)
+
+            if item:
+                items = collection.timezones
+                items.append(item)
+                body = items.to_ical()
+                etag = item.etag
+            else:
+                return 410, headers, None
+        else:
+            # Get whole collection
+            body = collection.text
+            etag = collection.etag
+
+        headers['Content-Type'] = collection.mimetype
+        headers['Last-Modified'] = collection.last_modified
+        headers['ETag'] = etag
+
+        return 200, headers, [body]
+
+    def put(self, path, collections, request_body, environ):
+        """
+            Manage PUT request.
+
+            It should return the etag of the element after setting it.
+        """
+
+        headers = {}
+
+        ical = icalendar.Calendar.from_ical(request_body)
+
+        collection = collections[0]
+        item_name = self.wsgi_name_from_path(path, collection)
+
+        item = collection.get_item(item_name)
+
+        if (not item and not environ.get('HTTP_IF_MATCH')) or (item and environ.get('HTTP_IF_MATCH', item.etag) == item.etag):
+
+            if item_name in (item.name for item in collection.items):
+                # Replace item
+                collection.replace(item_name, ical)
+            else:
+                collection.append(item_name, ical)
+
+            headers['ETag'] = collection.get_item(item_name).etag
+            status = 201
+        else:
+            status = 412
+
+        return status, headers, []

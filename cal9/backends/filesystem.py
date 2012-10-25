@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 import simplejson as json
 import icalendar
+import time
 import os
 
 FOLDER = config.config.calendars.folder
@@ -18,7 +19,7 @@ class Calendar(ical.Calendar):
         """ Path on the computer """
 
         # Remove first / and last /
-        path = self.path[1:-1]
+        path = self.path.strip('/')
 
         return os.path.join(FOLDER, path.replace('/', os.sep))
 
@@ -33,8 +34,26 @@ class Calendar(ical.Calendar):
 
     @property
     def ical(self):
-        ical = icalendar.Calendar()
-        return ical
+        # If path exists
+        if os.path.exists(self._path):
+            # Parse iCalendar object
+            with open(self._path) as f:
+                self._ical = icalendar.Calendar.from_ical(f.read())
+
+        # If self._ical isn't defined, create an empty iCalendar object
+        elif not hasattr(self, '_ical'):
+            self._ical = icalendar.Calendar()
+
+        return self._ical
+
+    @property
+    def last_modified(self):
+        # Create calendar if needed
+        if not os.path.exists(self._path):
+            self.save()
+
+        modification_time = time.gmtime(os.path.getmtime(self._path))
+        return time.strftime("%a, %d %b %Y %H:%M:%S +0000", modification_time)
 
     @property
     @contextmanager
@@ -55,11 +74,13 @@ class Calendar(ical.Calendar):
         with open(self._props_path, 'w') as f:
             json.dump(properties, f)
 
-    def save(self, ical):
+    def save(self):
         self._makedirs()
 
+        content = self.text
+
         with open(self._path, 'w') as f:
-            f.write(ical.to_ical())
+            f.write(content)
 
     def delete(self):
         os.remove(self._path)

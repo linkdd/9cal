@@ -3,6 +3,9 @@
 from contextlib import contextmanager
 import icalendar
 
+PRODID = "-//9cal//9h37 CalDAV server//"
+VERSION = "2.0"
+
 class Item(object):
     """ Abstract class which define an iCal object """
 
@@ -78,6 +81,8 @@ class ItemList(list):
         """
 
         ical = icalendar.Calendar()
+        ical.set('prodid', PRODID)
+        ical.set('version', VERSION)
 
         for item in self:
             for component in item.ical.subcomponents:
@@ -120,7 +125,14 @@ class Calendar(object):
     @property
     def text(self):
         """ The collection as plain text """
+        self.ical.set('prodid', PRODID)
+        self.ical.set('version', VERSION)
         return self.ical.to_ical()
+
+    @property
+    def last_modified(self):
+        """ Last modification on calendar """
+        raise NotImplementedError
 
     @property
     @contextmanager
@@ -138,6 +150,25 @@ class Calendar(object):
         """ Remove collection """
 
         raise NotImplementedError
+
+    def append(self, name, ical):
+        for component in ical.subcomponents:
+            self.ical.add_component(component)
+
+        self.save()
+
+    def remove(self, name):
+        for component in self.ical.walk():
+            item = Item(component.to_ical())
+
+            if item.name == name:
+                del component
+
+        self.save()
+
+    def replace(self, name, ical):
+        self.remove(name)
+        self.append(name, ical)
 
     @classmethod
     def is_calendar(cls, path):
@@ -158,7 +189,7 @@ class Calendar(object):
         parts = path.split("/")
 
         # If ``path`` is an item
-        if cls.is_item(path):
+        if not (cls.is_item(path) or path.endswith('/')):
             # Get the path associated to the calendar
             parts.pop()
 
@@ -235,3 +266,10 @@ class Calendar(object):
         """ Return a list of Timezone """
 
         return self.filter(Timezone)
+
+    def get_item(self, name):
+        """ Get item named ``name`` """
+
+        for item in self.items:
+            if item.name == name:
+                return item
