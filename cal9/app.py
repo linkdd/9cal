@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import posixpath
-
 import xml.etree.ElementTree as ET
 from urllib import unquote
 import icalendar
+import posixpath
+import os
 
 from util import DEBUG
 import config
@@ -37,16 +37,16 @@ class Application(object):
 
         request = environ['REQUEST_METHOD'].lower()
 
-        try:
-            function = getattr(self, request)
-        except AttributeError:
-            raise NotImplementedError
-
         request_body = self.wsgi_get_content(environ)
         DEBUG('Request Body:\n{0}'.format(request_body))
 
         path = self.wsgi_sanitize_path(environ['PATH_INFO'])
         DEBUG('Sanitized path: {0}'.format(path))
+
+        try:
+            function = getattr(self, request)
+        except AttributeError:
+            raise NotImplementedError
 
         collections = ical.Calendar.from_path(path)
 
@@ -101,9 +101,11 @@ class Application(object):
         path_parts = path.strip('/').split('/')
 
         if (len(path_parts) - len(collection_parts)):
-            DEBUG('name from path: {0}'.format(path_parts[-1]))
+            name = os.path.splitext(path_parts[-1])[0]
 
-            return path_parts[-1]
+            DEBUG('name from path: {0}'.format(name))
+
+            return name
 
     ## Request handlers
 
@@ -212,7 +214,7 @@ class Application(object):
                 body = items.to_ical()
                 etag = item.etag
             else:
-                return 410, headers, None
+                return 410, headers, []
         else:
             # Get whole collection
             body = collection.text
@@ -223,6 +225,27 @@ class Application(object):
         headers['ETag'] = etag
 
         return 200, headers, [body]
+
+    def report(self, path, collections, request_body, environ):
+        """
+            Manage REPORT request.
+
+            According to [RFC 3253], it should return 207 Multi-Status.
+            The request body contains :
+
+                <C:calendar-query>
+                    <D:prop>
+                        ...
+                    </D:prop>
+                </C:calendar-query
+        """
+
+        headers = {
+            'Content-Type': 'text/xml',
+        }
+
+        return 207, headers, []
+
 
     def put(self, path, collections, request_body, environ):
         """

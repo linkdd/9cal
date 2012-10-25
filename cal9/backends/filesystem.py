@@ -33,20 +33,6 @@ class Calendar(ical.Calendar):
             os.makedirs(os.path.dirname(self._path))
 
     @property
-    def ical(self):
-        # If path exists
-        if os.path.exists(self._path):
-            # Parse iCalendar object
-            with open(self._path) as f:
-                self._ical = icalendar.Calendar.from_ical(f.read())
-
-        # If self._ical isn't defined, create an empty iCalendar object
-        elif not hasattr(self, '_ical'):
-            self._ical = icalendar.Calendar()
-
-        return self._ical
-
-    @property
     def last_modified(self):
         # Create calendar if needed
         if not os.path.exists(self._path):
@@ -74,6 +60,21 @@ class Calendar(ical.Calendar):
         with open(self._props_path, 'w') as f:
             json.dump(properties, f)
 
+    def get(self):
+        ical = None
+
+        # If path exists
+        if os.path.exists(self._path):
+            # Parse iCalendar object
+            with open(self._path) as f:
+                ical = icalendar.Calendar.from_ical(f.read())
+
+        if not ical:
+            ical = icalendar.Calendar()
+
+        return ical
+
+
     def save(self):
         self._makedirs()
 
@@ -81,6 +82,8 @@ class Calendar(ical.Calendar):
 
         with open(self._path, 'w') as f:
             f.write(content)
+
+        self.ical = self.get()
 
     def delete(self):
         os.remove(self._path)

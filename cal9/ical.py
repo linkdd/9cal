@@ -29,7 +29,7 @@ class Item(object):
                     break
 
                 elif c.get('UID'):
-                    self.name = str(c.get('UID'))
+                    self._name = str(c.get('UID'))
                     # Do not break, X-CAL9-NAME can still appear
 
         if not self._name:
@@ -95,13 +95,9 @@ class Calendar(object):
 
     def __init__(self, path):
         self.path = path
+        self.ical = self.get()
 
     ## Calendar properties
-
-    @property
-    def ical(self):
-        """ MUST return a iCalendar object """
-        raise NotImplementedError
 
     @property
     def mimetype(self):
@@ -142,6 +138,10 @@ class Calendar(object):
 
     ## Calendar method
 
+    def get(self):
+        """ Get calendar from the storage backend """
+        raise NotImplementedError
+
     def save(self):
         """ Save changes to the collection """
         raise NotImplementedError
@@ -152,12 +152,16 @@ class Calendar(object):
         raise NotImplementedError
 
     def append(self, name, ical):
+        """ Append item to the collection """
+
         for component in ical.subcomponents:
             self.ical.add_component(component)
 
         self.save()
 
     def remove(self, name):
+        """ Remove item from collection """
+
         for component in self.ical.walk():
             item = Item(component.to_ical())
 
@@ -167,6 +171,8 @@ class Calendar(object):
         self.save()
 
     def replace(self, name, ical):
+        """ Replace item in collection """
+
         self.remove(name)
         self.append(name, ical)
 
