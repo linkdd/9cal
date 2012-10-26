@@ -184,11 +184,12 @@ class Calendar(object):
     def remove(self, name):
         """ Remove item from collection """
 
-        for component in self.ical.walk():
+        for component in self.ical.subcomponents:
             item = Item(component.to_ical())
 
             if item.name == name:
-                del component
+                i = self.ical.subcomponents.index(component)
+                del self.ical.subcomponents[i]
 
         self.save()
 
