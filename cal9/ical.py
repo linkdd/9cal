@@ -212,10 +212,18 @@ class Calendar(object):
         raise NotImplementedError
 
     @classmethod
-    def from_path(cls, path):
-        """ Return a calendar and its components associated to ``path`` """
+    def from_path(cls, path, depth="infinite"):
+        """
+            Return a calendar and its components associated to ``path``
+
+            If depth is 0, only the calendar is returned. Otherwise, the
+            calendar and its items are returned.
+        """
 
         parts = path.split("/")
+
+        if not parts:
+            return None
 
         # If ``path`` is an item
         if not (cls.is_item(path) or path.endswith('/')):
@@ -229,7 +237,9 @@ class Calendar(object):
 
         cal = cls(path)
         result.append(cal)
-        result.extend(cal.components)
+
+        if depth != "0":
+           result.extend(cal.components)
 
         return result
 

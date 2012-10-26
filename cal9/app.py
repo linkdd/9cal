@@ -49,7 +49,7 @@ class Application(object):
         except AttributeError:
             raise NotImplementedError, '{0} {1}'.format(request.upper(), path)
 
-        collections = ical.Calendar.from_path(path)
+        collections = ical.Calendar.from_path(path, depth=environ.get('HTTP_DEPTH', '0'))
 
         response = function(path, collections, request_body, environ)
         DEBUG('Response body:\n{0}'.format(response))
@@ -407,3 +407,64 @@ class Application(object):
 
         # No item or ETag precondition not verified
         return 412, {}, []
+
+    def copy(self, path, collections, request_body, environ):
+        """
+            Manage COPY request.
+
+            Copy an item from one calendar to another.
+
+            The [RFC 2518] allows to copy the item on a distant calendar.
+            If the remote server refuse the resource, we should return a 502 Bad Gateway.
+            But for security reason, we don't allow this.
+        """
+
+        from_collection = collections[0]
+        from_name = self.wsgi_name_from_path(path, from_collection)
+
+        if from_name:
+            item = from_collection.get_item(from_name)
+
+            if item:
+                url_parts = urlparse(environ['HTTP_DESTINATION'])
+
+                # Check if we are on the same host
+                if url_parts.netlock == environ['HTTP_HOST']:
+
+                    # Copy the item
+                    to_path, to_name = url_parts.path.rstrip('/').rsplit('/', 1)
+
+                    to_collection = ical.Calendar.from_path(to_path, depth="0")[0]
+                    to_collection.append(to_name, item.ical)
+
+                    return 201, {}, []
+
+                else:
+                    # Remote destination server is forbidden
+                    return 502, {}, []
+
+            else:
+                # The item wasn't found
+                return 410, {}, []
+        else:
+            # Moving entire collection is Forbidden
+            return 403, {}, []
+
+    def move(self, path, collections, request_body, environ):
+        """
+            Manage MOVE request.
+
+            It's like a COPY request, but delete the item after copy.
+        """
+
+         # Copy the item
+        status, headers, content = self.copy(path, collections, request_body, environ)
+
+        # If the copy was successful
+        if status == 201:
+            # Delete the source
+            collection = collections[0]
+            name = self.wsgi_name_from_path(path, collection)
+            collection.remove(name)
+
+        return status, headers, content
