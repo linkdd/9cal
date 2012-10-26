@@ -10,7 +10,8 @@ def DEBUG(msg):
     import sys
 
     if config.config.debug:
-        print >>sys.stderr, "DEBUG:", msg
+        for line in msg.splitlines():
+            print >>sys.stderr, "\033[01;31mDEBUG:\033[00m", line
 
 
 class Dict(dict):

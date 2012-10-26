@@ -55,6 +55,9 @@ class Item(object):
     def name(self):
         return self._name
 
+    def to_ical(self):
+        return self.ical.to_ical()
+
 class Component(Item):
     pass
 
@@ -98,9 +101,18 @@ class Calendar(object):
 
     def __init__(self, path):
         self.path = path
-        self.ical = self.get()
+        self._ical = None
 
     ## Calendar properties
+
+    @property
+    def ical(self):
+        """ Wrapper to internal iCalendar object """
+
+        if self._ical is None:
+            self._ical = self.get()
+
+        return self._ical
 
     @property
     def mimetype(self):
@@ -146,7 +158,14 @@ class Calendar(object):
         raise NotImplementedError
 
     def save(self):
-        """ Save changes to the collection """
+        """ Save changes to the collection and update the internal calendar """
+
+        self.write()
+        self._ical = self.get()
+
+
+    def write(self):
+        """ Write changes to the collection """
         raise NotImplementedError
 
     def delete(self):
@@ -236,7 +255,41 @@ class Calendar(object):
                 ical.add_component(component)
 
                 # Generate an object from it, and append it to the list
-                items.append(item_type(ical.to_ical()))
+
+                component_found = False
+
+                # Get the correct item type, by checking the tag defined for each
+                # subclass of Item.
+                for t in Item.__subclasses__():
+
+                    # If the subclass is Component, check for its subclasses
+                    if t is Component:
+
+                        for ct in Component.__subclasses__():
+
+                            # If the component's type match
+                            if component.name == ct.tag:
+                                # Append object to the list
+                                items.append(ct(ical.to_ical()))
+
+                                component_found = True
+                                break
+
+                    # If the component was found in subclass of Component
+                    if component_found:
+                        # the item was added
+                        break
+
+                    # If the component's type match
+                    if component.name == t.tag:
+                        # Append object to the list
+                        items.append(t(ical.to_ical()))
+                        break
+
+                else:
+                    # We didn't find the component's type
+                    # Fallback on Item
+                    items.append(Item(ical.to_ical()))
 
         return items
 

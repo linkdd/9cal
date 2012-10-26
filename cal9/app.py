@@ -47,7 +47,7 @@ class Application(object):
         try:
             function = getattr(self, request)
         except AttributeError:
-            raise NotImplementedError
+            raise NotImplementedError, '{0} {1}'.format(request.upper(), path)
 
         collections = ical.Calendar.from_path(path)
 
@@ -282,7 +282,7 @@ class Application(object):
         multistatus = ET.Element(xmlutils.tag('D', 'multistatus'))
 
         for href in hrefs:
-            name = self.wsgi_name_from_path(path, collection)
+            name = self.wsgi_name_from_path(href, collection)
 
             if name:
                 # The reference is an item
@@ -301,7 +301,7 @@ class Application(object):
                 multistatus.append(response)
 
                 xmlhref = ET.Element(xmlutils.tag('D', 'href'))
-                xmlhref.text = '{0}/{1}'.format(path.rstrip('/'), name)
+                xmlhref.text = '/'.join([path.rstrip('/'), item.name]) + '.ics'
                 response.append(xmlhref)
 
                 propstat = ET.Element(xmlutils.tag('D', 'propstat'))
@@ -359,3 +359,51 @@ class Application(object):
             status = 412
 
         return status, headers, []
+
+    def delete(self, path, collections, request_body, environ):
+        """
+            Manage DELETE request.
+
+            The URL contains the element to delete :
+
+                /path/to/calendar/element-uid.ics : delete an item
+                /path/to/calendar/ : delete the whole calendar
+        """
+
+        collection = collections[0]
+
+        if collection.path == path.strip('/'):
+            # Path match the collection, delete the whole collection
+            item = collection
+
+        else:
+            # Path match an item, delete the item
+            item = collection.get_item(self.wsgi_name_from_path(path, collection))
+
+        if item and environ.get('HTTP_IF_MATCH', item.etag) == item.etag:
+            # No ETag precondition, or precondition verified
+
+            if item is collection:
+                collection.delete()
+
+            else:
+                collection.remove(item.name)
+
+            # Write response body
+
+            multistatus = ET.Element(xmlutils.tag('D', 'multistatus'))
+            response = ET.Element(xmlutils.tag('D', 'response'))
+            multistatus.append(response)
+
+            href = ET.Element(xmlutils.tag('D', 'href'))
+            href.text = path
+            response.append(href)
+
+            status = ET.Element(xmlutils.tag('D', 'status'))
+            status.text = util.http_response(200)
+            response.append(status)
+
+            return 204, {}, [xmlutils.render(multistatus)]
+
+        # No item or ETag precondition not verified
+        return 412, {}, []

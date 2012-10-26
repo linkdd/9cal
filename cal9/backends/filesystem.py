@@ -66,24 +66,25 @@ class Calendar(ical.Calendar):
         # If path exists
         if os.path.exists(self._path):
             # Parse iCalendar object
-            with open(self._path) as f:
-                ical = icalendar.Calendar.from_ical(f.read())
+            try:
+                with open(self._path) as f:
+                    ical = icalendar.Calendar.from_ical(f.read())
+
+            except IOError:
+                ical = None
 
         if not ical:
             ical = icalendar.Calendar()
 
         return ical
 
-
-    def save(self):
+    def write(self):
         self._makedirs()
 
         content = self.text
 
         with open(self._path, 'w') as f:
             f.write(content)
-
-        self.ical = self.get()
 
     def delete(self):
         os.remove(self._path)
