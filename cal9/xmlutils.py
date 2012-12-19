@@ -55,7 +55,7 @@ def render(xml):
 def propfind_response(path, item, props):
     """ Perform a PROPFIND on ``item`` """
 
-    is_collection = isinstance(item, ical.Calendar)
+    is_collection = isinstance(item, ical.Collection)
 
     if is_collection:
         with item.props as properties:

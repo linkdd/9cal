@@ -96,14 +96,14 @@ class ItemList(list):
 
         return ical.to_ical()
 
-class Calendar(object):
+class Collection(object):
     """ Abstract class which define access API to calendars """
 
     def __init__(self, path):
         self.path = path
         self._ical = None
 
-    ## Calendar properties
+    ## Collection properties
 
     @property
     def ical(self):
@@ -151,7 +151,7 @@ class Calendar(object):
         """ Return collection properties """
         raise NotImplementedError
 
-    ## Calendar method
+    ## Collection method
 
     def get(self):
         """ Get calendar from the storage backend """

@@ -13,7 +13,7 @@ import os
 
 FOLDER = config.config.calendars.folder
 
-class Calendar(ical.Calendar):
+class Collection(ical.Collection):
     @property
     def _path(self):
         """ Path on the computer """
@@ -99,4 +99,4 @@ class Calendar(ical.Calendar):
         abs_path = os.path.join(FOLDER, path.replace('/', os.sep))
         return os.path.isfile(abs_path)
 
-ical.Calendar = Calendar
+ical.Collection = Collection

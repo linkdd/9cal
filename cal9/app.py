@@ -49,7 +49,7 @@ class Application(object):
         except AttributeError:
             raise NotImplementedError, '{0} {1}'.format(request.upper(), path)
 
-        collections = ical.Calendar.from_path(path, depth=environ.get('HTTP_DEPTH', '0'))
+        collections = ical.Collection.from_path(path, depth=environ.get('HTTP_DEPTH', '0'))
 
         response = function(path, collections, request_body, environ)
         DEBUG('Response body:\n{0}'.format(response))
@@ -434,7 +434,7 @@ class Application(object):
                     # Copy the item
                     to_path, to_name = url_parts.path.rstrip('/').rsplit('/', 1)
 
-                    to_collection = ical.Calendar.from_path(to_path, depth="0")[0]
+                    to_collection = ical.Collection.from_path(to_path, depth="0")[0]
                     to_collection.append(to_name, item.ical)
 
                     return 201, {}, []
